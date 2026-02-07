@@ -3,7 +3,48 @@ services:
     build: .
     container_name: fastapi_api
     ports:
-      - "8000:8000"
+      - "${API_PORT}:8000"
     volumes:
       - ./:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: "mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@${MYSQL_HOST}:3306/${MYSQL_DB}"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn main:app --host ${API_HOST} --port 8000 --reload
+
+  db:
+    image: mysql:8.0
+    container_name: fastapi_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DB}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: fastapi_phpmyadmin
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PMA_HOST: ${MYSQL_HOST}
+      PMA_PORT: 3306
+    ports:
+      - "8081:80"
+
+volumes:
+  db_data:
